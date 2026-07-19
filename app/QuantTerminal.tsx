@@ -13,6 +13,7 @@ import type {
   MarketOptionContract,
   MarketReadyResponse,
 } from "@/lib/market";
+import { SpxStructureTerminal } from "@/app/SpxStructureTerminal";
 import {
   CATEGORY_LABELS,
   MODULES,
@@ -122,13 +123,19 @@ function pct(value: number | null, fraction = false) {
   return `${normalized.toFixed(1)}%`;
 }
 
-function daysTo(expiration: string) {
+function daysTo(expiration: string, observedAt: string) {
   const end = new Date(`${expiration}T20:00:00Z`).valueOf();
-  return Math.max(0, (end - Date.now()) / 86_400_000);
+  const start = new Date(observedAt).valueOf();
+  return Math.max(0, (end - start) / 86_400_000);
 }
 
 function deriveAnalytics(data: MarketReadyResponse): DerivedAnalytics {
-  if (data.analyticsStatus === "unavailable" || !data.chain.complete) {
+  if (
+    data.analyticsStatus === "unavailable" ||
+    !data.chain.complete ||
+    data.chain.coverage.missingGreeks > 0 ||
+    data.chain.coverage.missingOpenInterest > 0
+  ) {
     return {
       available: false,
       rows: [],
@@ -149,11 +156,11 @@ function deriveAnalytics(data: MarketReadyResponse): DerivedAnalytics {
     const oi = contract.openInterest;
     const gamma = contract.gamma;
     const delta = contract.delta;
-    if (oi === null || gamma === null || oi < 0 || gamma < 0) continue;
+    if (oi === null || gamma === null || delta === null || oi < 0 || gamma < 0) continue;
     const multiplier = contract.multiplier;
     const sign = contract.type === "call" ? 1 : -1;
     const gex = sign * gamma * oi * multiplier * data.spot * data.spot * 0.01;
-    const dex = delta === null ? 0 : delta * oi * multiplier * data.spot;
+    const dex = delta * oi * multiplier * data.spot;
     const row = buckets.get(contract.strike) ?? {
       strike: contract.strike,
       callGex: 0,
@@ -194,7 +201,7 @@ function deriveAnalytics(data: MarketReadyResponse): DerivedAnalytics {
   const atmIv = nearest.length
     ? nearest.reduce((sum, item) => sum + (item.impliedVolatility ?? 0), 0) / nearest.length
     : null;
-  const dte = nearestExpiry ? daysTo(nearestExpiry) : 0;
+  const dte = nearestExpiry ? daysTo(nearestExpiry, data.observedAt ?? data.fetchedAt) : 0;
   const expectedMove = atmIv !== null && dte > 0
     ? data.spot * atmIv * Math.sqrt(dte / 365.25)
     : null;
@@ -544,7 +551,7 @@ function IvView({ data }: { data: MarketReadyResponse }) {
     return {
       expiration,
       iv: near.length ? near.reduce((sum, item) => sum + (item.impliedVolatility ?? 0), 0) / near.length : null,
-      dte: Math.ceil(daysTo(expiration)),
+      dte: Math.ceil(daysTo(expiration, data.observedAt ?? data.fetchedAt)),
     };
   });
   const max = Math.max(.01, ...rows.map((row) => row.iv ?? 0));
@@ -671,6 +678,7 @@ function WorkspaceContent({ module, path, data, analytics, symbol }: {
   const ready = data?.status === "ready" ? data : null;
   const detailEgh = /^\/effective-gamma\//i.test(path);
 
+  if (module.id === "ticker" && symbol === "SPX") return <SpxStructureTerminal data={data} />;
   if (module.id === "order-reference") return <OrderReferenceView />;
   if (module.id === "alerts") return <AlertsView symbol={symbol} />;
   if (module.id === "review-history") return <ReviewView symbol={symbol} />;
@@ -704,14 +712,22 @@ function ModuleWorkspace({ module, path, symbol, data, loading, refresh }: {
 }) {
   const analytics = useMemo(() => data?.status === "ready" ? deriveAnalytics(data) : null, [data]);
   const needsMarket = !["order-reference", "alerts", "review-history"].includes(module.id);
+  const isSpxTerminal = module.id === "ticker" && symbol === "SPX";
+  const title = isSpxTerminal ? "SPX 结构终端" : module.name;
+  const summary = isSpxTerminal
+    ? "用单到期切片检查 SPX 现货、OI Proxy GEX / DEX、Gamma 集中位、ATM 跨式、IV 与数据血缘。"
+    : module.summary;
+  const outputs = isSpxTerminal
+    ? ["单到期 GEX / DEX", "ATM 跨式 / IV", "逐字段数据血缘"]
+    : module.outputs;
   return (
     <>
       <section className="workspace-hero">
         <div>
           <p className="breadcrumbs">GAMMALENS / {CATEGORY_LABELS[module.category].toUpperCase()} / {module.english.toUpperCase()}</p>
-          <h1>{module.name}</h1>
-          <p>{module.summary}</p>
-          <div className="output-tags">{module.outputs.map((item) => <span key={item}>{item}</span>)}</div>
+          <h1>{title}</h1>
+          <p>{summary}</p>
+          <div className="output-tags">{outputs.map((item) => <span key={item}>{item}</span>)}</div>
         </div>
         <div className="symbol-block"><span>ACTIVE SYMBOL</span><strong>{symbol}</strong><small>{needsMarket ? "市场数据驱动" : "本地工具"}</small></div>
       </section>
@@ -745,7 +761,8 @@ export function QuantTerminal({ initialPath }: { initialPath: string }) {
     setLoading(true);
     setData(null);
     try {
-      const response = await fetch(`/api/market?symbol=${encodeURIComponent(marketSymbol)}`, {
+        const profile = marketSymbol === "SPX" ? "&profile=spx-front-structure" : "";
+        const response = await fetch(`/api/market?symbol=${encodeURIComponent(marketSymbol)}${profile}`, {
         cache: "no-store",
         signal: controller.signal,
       });

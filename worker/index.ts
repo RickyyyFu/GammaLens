@@ -51,6 +51,9 @@ const worker = {
 
     if (url.pathname === "/api/market") {
       const symbol = url.searchParams.get("symbol") ?? "MU";
+      const profile = url.searchParams.get("profile") === "spx-front-structure"
+        ? "spx-front-structure"
+        : "standard";
       let payload: MarketApiResponse;
       if (request.method !== "GET") {
         payload = createMarketErrorResponse(
@@ -60,7 +63,7 @@ const worker = {
           false,
         );
       } else {
-        payload = await getMarketPayload(symbol, env.MASSIVE_API_KEY);
+        payload = await getMarketPayload(symbol, env.MASSIVE_API_KEY, { profile });
       }
       const mode = payload.status === "ready" ? payload.feedClass : payload.status;
       return Response.json(payload, {

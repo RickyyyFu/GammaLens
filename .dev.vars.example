@@ -1,2 +1,3 @@
-# Server-side only. Requires an options plan and appropriate display rights.
+# Server-side only. Public SPX use requires licensed Indices + Options/OPRA access
+# and the appropriate external-display / redistribution rights.
 MASSIVE_API_KEY=

@@ -1,4 +1,4 @@
-export const MARKET_API_SCHEMA_VERSION = "1.0" as const;
+export const MARKET_API_SCHEMA_VERSION = "1.1" as const;
 
 export type MarketFeedClass =
   | "real-time"
@@ -99,7 +99,7 @@ export interface MarketReadyResponse {
   changePercent: number | null;
   underlying: {
     price: number;
-    source: "stock-last-trade" | "stock-minute-close" | "stock-day-close" | "chain-underlying";
+    source: "index-snapshot" | "stock-last-trade" | "stock-minute-close" | "stock-day-close" | "chain-underlying";
     feedClass: MarketFeedClass;
     observedAt: string | null;
   };
@@ -121,6 +121,7 @@ export interface MarketReadyResponse {
     complete: boolean;
     analyticsStatus: AnalyticsStatus;
     requestedScope: {
+      profile: "standard" | "spx-front-structure";
       expirationFrom: string;
       expirationTo: string;
       strikeFrom: number;
@@ -239,6 +240,30 @@ interface MassiveStockResponse {
     todaysChangePerc?: number;
     updated?: number;
   };
+  status?: string;
+  error?: string;
+  message?: string;
+}
+
+interface MassiveIndexSnapshot {
+  error?: string;
+  last_updated?: number;
+  market_status?: string;
+  name?: string;
+  session?: {
+    change?: number;
+    change_percent?: number;
+    close?: number;
+    previous_close?: number;
+  };
+  ticker?: string;
+  timeframe?: string;
+  value?: number;
+}
+
+interface MassiveIndexResponse {
+  request_id?: string;
+  results?: MassiveIndexSnapshot[];
   status?: string;
   error?: string;
   message?: string;
@@ -534,6 +559,17 @@ function chainUnderlyingObservation(snapshot?: MassiveSnapshot): UnderlyingObser
   };
 }
 
+function indexObservation(snapshot?: MassiveIndexSnapshot): UnderlyingObservation | null {
+  const price = positiveNumber(snapshot?.value);
+  if (price === null) return null;
+  return {
+    price,
+    source: "index-snapshot",
+    feedClass: normalizeFeedLabel(snapshot?.timeframe),
+    observedAt: isoFromEpoch(snapshot?.last_updated),
+  };
+}
+
 function sortedIsoWindow(values: Array<string | null>) {
   const epochs = values
     .filter((value): value is string => Boolean(value))
@@ -614,6 +650,8 @@ function maximumChainPriceDeviationBps(
 
 export interface FetchMarketOptions {
   timeoutMs?: number;
+  /** 服务器控制的固定范围；客户端不能任意扩大抓取成本。 */
+  profile?: "standard" | "spx-front-structure";
 }
 
 export async function fetchMassivePayload(
@@ -627,25 +665,47 @@ export async function fetchMassivePayload(
   const isIndex = providerSymbol.startsWith("I:");
   const started = new Date();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const profile = normalized === "SPX" && options.profile === "spx-front-structure"
+    ? "spx-front-structure"
+    : "standard";
+  const expiryDays = profile === "spx-front-structure" ? 7 : 60;
+  const strikeDistance = profile === "spx-front-structure" ? 0.08 : 0.28;
+  const maxPages = profile === "spx-front-structure" ? 20 : MAX_PAGES;
   const signal = AbortSignal.timeout(timeoutMs);
   const providerRequestIds: string[] = [];
   const stockUrl = `https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(
     normalized,
   )}`;
   let ticker: MassiveStockResponse["ticker"] | undefined;
-  let stockWarning = "";
-  if (!isIndex) {
+  let indexSnapshot: MassiveIndexSnapshot | undefined;
+  let underlyingWarning = "";
+  if (isIndex) {
+    try {
+      const indexUrl = new URL("https://api.massive.com/v3/snapshot/indices");
+      indexUrl.searchParams.set("ticker", providerSymbol);
+      indexUrl.searchParams.set("limit", "10");
+      const index = await checkedJson<MassiveIndexResponse>(indexUrl.toString(), apiKey, signal);
+      if (index.request_id) providerRequestIds.push(index.request_id);
+      indexSnapshot = index.results?.find((item) => item.ticker === providerSymbol && !item.error);
+    } catch (error) {
+      if (error instanceof MarketDataError && error.code === "PROVIDER_TIMEOUT") throw error;
+      underlyingWarning = error instanceof Error ? error.message : "指数快照接口不可用";
+    }
+  } else {
     try {
       const stock = await checkedJson<MassiveStockResponse>(stockUrl, apiKey, signal);
       ticker = stock.ticker;
       if (stock.request_id) providerRequestIds.push(stock.request_id);
     } catch (error) {
       if (error instanceof MarketDataError && error.code === "PROVIDER_TIMEOUT") throw error;
-      stockWarning = error instanceof Error ? error.message : "股票行情接口不可用";
+      underlyingWarning = error instanceof Error ? error.message : "股票行情接口不可用";
     }
   }
 
-  let underlying = chooseStockObservation(ticker);
+  let underlying = isIndex ? indexObservation(indexSnapshot) : chooseStockObservation(ticker);
+  if (!underlying && isIndex && !underlyingWarning) {
+    underlyingWarning = `${providerSymbol} 指数快照没有返回可用 value。`;
+  }
   if (!underlying) {
     const seedUrl = new URL(
       `https://api.massive.com/v3/snapshot/options/${encodeURIComponent(providerSymbol)}`,
@@ -665,9 +725,9 @@ export async function fetchMassivePayload(
   }
 
   const expirationFrom = dateOnly(started);
-  const expirationTo = dateOnly(addDays(started, 60));
-  const strikeFrom = Number((underlying.price * 0.72).toFixed(2));
-  const strikeTo = Number((underlying.price * 1.28).toFixed(2));
+  const expirationTo = dateOnly(addDays(started, expiryDays));
+  const strikeFrom = Number((underlying.price * (1 - strikeDistance)).toFixed(2));
+  const strikeTo = Number((underlying.price * (1 + strikeDistance)).toFixed(2));
   const query = new URLSearchParams({
     "expiration_date.gte": expirationFrom,
     "expiration_date.lte": expirationTo,
@@ -683,7 +743,7 @@ export async function fetchMassivePayload(
   const snapshots: MassiveSnapshot[] = [];
   let pagesFetched = 0;
 
-  for (; nextUrl && pagesFetched < MAX_PAGES; pagesFetched += 1) {
+  for (; nextUrl && pagesFetched < maxPages; pagesFetched += 1) {
     const chain: MassiveChainResponse = await checkedJson<MassiveChainResponse>(
       nextUrl,
       apiKey,
@@ -724,11 +784,11 @@ export async function fetchMassivePayload(
     },
   ];
 
-  if (stockWarning) {
+  if (underlyingWarning) {
     warnings.push({
       code: "UNDERLYING_FROM_OPTION_CHAIN",
       severity: "warning",
-      message: `股票行情接口不可用（${stockWarning}）；标的价格来自期权链 underlying_asset。`,
+      message: `独立标的行情接口不可用（${underlyingWarning}）；标的价格来自期权链 underlying_asset。`,
       affectedMetrics: ["spot", "netGex", "dex", "zeroGamma"],
     });
   }
@@ -736,7 +796,7 @@ export async function fetchMassivePayload(
     warnings.push({
       code: "CHAIN_TRUNCATED",
       severity: "blocking",
-      message: `达到 ${MAX_PAGES * PAGE_SIZE} 条抓取上限后仍有下一页；当前链不完整，禁止计算全局 Gamma 指标。`,
+      message: `达到 ${maxPages * PAGE_SIZE} 条抓取上限后仍有下一页；当前声明范围内的链不完整，禁止计算全局 Gamma 指标。`,
       affectedMetrics: ["netGex", "dex", "walls", "zeroGamma", "expectedMove"],
     });
   }
@@ -759,16 +819,16 @@ export async function fetchMassivePayload(
   if (coverage.missingGreeks > 0) {
     warnings.push({
       code: "GREEKS_INCOMPLETE",
-      severity: coverage.withCompleteGreeks === 0 ? "blocking" : "warning",
-      message: `${coverage.missingGreeks} 个合约缺少完整 Delta/Gamma/IV；缺失值保持 null。`,
+      severity: "warning",
+      message: `${coverage.missingGreeks} 个合约缺少完整 Delta/Gamma/IV；各指标将独立门控，缺失值保持 null。`,
       affectedMetrics: ["netGex", "dex", "walls", "zeroGamma", "expectedMove"],
     });
   }
   if (coverage.missingOpenInterest > 0) {
     warnings.push({
       code: "OPEN_INTEREST_INCOMPLETE",
-      severity: coverage.withOpenInterest === 0 ? "blocking" : "warning",
-      message: `${coverage.missingOpenInterest} 个合约缺少 OI；缺失值不会按 0 处理。`,
+      severity: "warning",
+      message: `${coverage.missingOpenInterest} 个合约缺少 OI；相关汇总指标将停止计算，缺失值不会按 0 处理。`,
       affectedMetrics: ["netGex", "dex", "walls", "zeroGamma"],
     });
   }
@@ -796,11 +856,13 @@ export async function fetchMassivePayload(
       ? "degraded"
       : "ready";
   const fetchedAt = new Date().toISOString();
-  const change = finiteNumber(ticker?.todaysChange);
-  const previousClose = positiveNumber(ticker?.prevDay?.c);
+  const change = finiteNumber(ticker?.todaysChange ?? indexSnapshot?.session?.change);
+  const previousClose = positiveNumber(ticker?.prevDay?.c ?? indexSnapshot?.session?.previous_close);
   const calculatedChange = previousClose === null ? null : underlying.price - previousClose;
   const changeValue = change ?? calculatedChange;
-  const providedChangePercent = finiteNumber(ticker?.todaysChangePerc);
+  const providedChangePercent = finiteNumber(
+    ticker?.todaysChangePerc ?? indexSnapshot?.session?.change_percent,
+  );
   const changePercent =
     providedChangePercent ??
     (previousClose !== null && changeValue !== null
@@ -848,6 +910,7 @@ export async function fetchMassivePayload(
       complete,
       analyticsStatus,
       requestedScope: {
+        profile,
         expirationFrom,
         expirationTo,
         strikeFrom,
@@ -857,7 +920,7 @@ export async function fetchMassivePayload(
       pagination: {
         pagesFetched,
         pageSize: PAGE_SIZE,
-        maxPages: MAX_PAGES,
+        maxPages,
         hasMore: !complete,
       },
       quoteWindow,

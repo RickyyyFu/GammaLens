@@ -2,6 +2,8 @@
 
 GammaLens 是一个开放访问、可审计的美股期权结构研究终端。它包含 22 个页面，覆盖单标的工作台、OI GEX / DEX、IV 期限结构、到期墙、SPX 工作区、有效 Gamma 方法说明、风险预算与本地复盘。
 
+`/ticker/SPX` 是独立的 SPX 结构终端：默认请求未来 7 个日历日、Spot 上下 8% 的明确范围，并把每个到期日分开计算。页面包含 OI Proxy GEX / DEX、Gamma 集中位、ATM 跨式权利金、ATM IV、近似 25Δ 偏度、期限矩阵、原始输入和逐字段数据血缘。
+
 本项目借鉴同类量化终端的公开信息架构，但不复制第三方品牌、文案、页面代码、数据或私有算法。
 
 ## 数据原则
@@ -10,6 +12,9 @@ GammaLens 是一个开放访问、可审计的美股期权结构研究终端。�
 - 未配置数据源时，`/api/market` 返回 `503 DATA_PROVIDER_NOT_CONFIGURED`，界面显示“不可计算”。
 - `observedAt`、`fetchedAt`、报价时间和 OI 批次分开保存；未知时间保持 `null`。
 - 链被截断或存在阻断级质量问题时，全局 Gamma 指标停止计算。
+- SPX GEX 与 DEX 分别门控：任何正 OI 合约缺少对应 Greek 或可靠乘数时，该到期日 headline 直接停算；缺失 Delta 绝不按 0 处理。
+- ATM 跨式只使用同一到期日、同一行权价、双边报价相差不超过 60 秒的 Call / Put。
+- Zero Gamma 缺少可验证的利率曲线、SPX 股息曲线与 AM/PM 结算元数据时保持不可计算。
 - OI GEX 使用 Call 正、Put 负的展示约定，不代表做市商真实账本。
 - 真正的 Effective Hedging Gamma 需要带方向订单流、客户类型归因、归因覆盖率和对冲倾向；标准 OPRA 快照本身不足以计算。
 
@@ -49,9 +54,16 @@ pnpm run lint
 
 ## 实时数据与公开展示
 
-Massive 的期权快照可返回 IV、Greeks、报价和上一交易日 OI；数据是否实时取决于订阅套餐。公开网站展示实时 OPRA 数据还需要与用途相符的商业/展示/再分发授权。不要把个人套餐密钥部署到公开再分发服务。
+当前可执行适配器使用 Massive：SPX 现货来自独立 `I:SPX` index snapshot，期权链来自 OPRA snapshot，OI 是上一交易日结束时库存。数据是否实时取决于订阅套餐。
+
+推荐的数据质量路径：
+
+1. 机构级：Cboe CGIF（SPX）+ OPRA / Cboe Options（NBBO/成交）+ Cboe Hanweck（Greeks）+ OCC Daily OI 校验。
+2. 实用级：Massive Business Indices + Business Options / 实时 OPRA 权限，服务端保存 request ID 和逐字段时间戳。
+3. 有效 Gamma：另需 Cboe Open-Close 或等价的买卖、开平与参与者归因；标准 OPRA 快照不能计算。
+
+公开网站展示实时 SPX/OPRA 数据以及对外提供衍生分析，必须取得与用途相符的商业、展示和再分发授权。不要把个人套餐密钥部署到公开服务，也不要提交到 GitHub。未获得授权时，保持服务器密钥为空，网站会诚实显示 `DATA_PROVIDER_NOT_CONFIGURED`。
 
 ## 风险说明
 
 GammaLens 是研究基础设施，不连接券商，不执行订单，也不构成投资建议。结构指标描述的是条件敏感度，不是价格方向、胜率或收益保证。
-

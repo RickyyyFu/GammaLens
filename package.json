@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "pnpm run build && node --test tests/rendered-html.test.mjs",
+    "test": "pnpm run build && node --test tests/rendered-html.test.mjs && node --experimental-strip-types --test tests/spx-structure.test.ts",
     "lint": "eslint app lib worker tests --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
