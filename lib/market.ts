@@ -347,7 +347,7 @@ function createUnconfiguredResponse(
     source: { provider: "Massive" },
     error: {
       code: "DATA_PROVIDER_NOT_CONFIGURED",
-      message: "市场数据服务尚未配置，无法返回真实行情。",
+      message: "服务器没有可公开输出的授权行情源，或展示、衍生计算与原始链再分发权尚未全部确认。",
       retryable: false,
     },
   };

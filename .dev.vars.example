@@ -1,3 +1,20 @@
 # Server-side only. Public SPX use requires licensed Indices + Options/OPRA access
 # and the appropriate external-display / redistribution rights.
 MASSIVE_API_KEY=
+
+# Fail-closed public data gate. Keep disabled/false until the signed agreements
+# explicitly cover every use below. A personal subscription is not sufficient.
+PUBLIC_FEED_MODE=disabled
+PUBLIC_DISPLAY_AUTHORIZED=false
+DERIVED_ANALYTICS_AUTHORIZED=false
+RAW_REDISTRIBUTION_AUTHORIZED=false
+
+# Planned licensed adapters. These values are never returned by /api/providers.
+NASDAQ_DATALINK_BASE_URL=
+NASDAQ_DATALINK_CLIENT_ID=
+NASDAQ_DATALINK_CLIENT_SECRET=
+CBOE_CGIF_GATEWAY_URL=
+CBOE_CGIF_GATEWAY_TOKEN=
+OCC_DAILY_OI_ENABLED=false
+BLOOMBERG_GATEWAY_URL=
+BLOOMBERG_GATEWAY_TOKEN=

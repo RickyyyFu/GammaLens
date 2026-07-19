@@ -79,7 +79,7 @@ function feedLabel(value: MarketReadyResponse["feedClass"]) {
 
 function errorMessage(response: Exclude<MarketApiResponse, MarketReadyResponse>) {
   const messages: Record<string, string> = {
-    DATA_PROVIDER_NOT_CONFIGURED: "服务器尚未配置行情授权。为避免误导，所有合成价格和合成期权链均已停用。",
+    DATA_PROVIDER_NOT_CONFIGURED: "服务器尚未配置可公开输出的行情授权，或展示、衍生计算与原始链再分发权未全部确认。为避免误导，所有合成价格和合成期权链均已停用。",
     INVALID_SYMBOL: "标的代码格式无效。",
     SYMBOL_NOT_FOUND: "数据源没有找到这个标的。",
     OPTION_CHAIN_UNAVAILABLE: "数据源没有返回可用的期权链。",

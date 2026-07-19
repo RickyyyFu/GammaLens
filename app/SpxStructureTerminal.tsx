@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MarketApiResponse, MarketReadyResponse } from "@/lib/market";
+import {
+  PROVIDER_CATALOG,
+  type ProviderRegistryResponse,
+  type ProviderStatus,
+} from "@/lib/providers";
 import {
   buildSpxStructure,
   spxExpirations,
@@ -46,7 +51,7 @@ function asEt(value: string | null) {
 
 function EmptySpxTerminal({ data }: { data: MarketApiResponse | null }) {
   const reason = data?.status === "unconfigured"
-    ? "服务器尚未配置获准公开展示的行情密钥。"
+    ? "服务器尚未配置获准公开输出的行情源，或展示、衍生计算与原始链再分发权尚未全部确认。"
     : data?.status === "error"
       ? data.error.message
       : "正在等待可验证的 SPX 数据快照。";
@@ -78,38 +83,68 @@ function EmptySpxTerminal({ data }: { data: MarketApiResponse | null }) {
 }
 
 function DataSourceContract({ ready }: { ready: MarketReadyResponse | null }) {
+  const [registry, setRegistry] = useState<ProviderRegistryResponse | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/providers", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<ProviderRegistryResponse> : null)
+      .then((payload) => {
+        if (payload) setRegistry(payload);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const providers = (registry?.providers ?? PROVIDER_CATALOG).map((provider) => {
+    if (provider.id !== "massive" || !ready) return provider;
+    return {
+      ...provider,
+      runtimeState: "ready",
+      statusLabel: `${ready.feedClass.toUpperCase()} SNAPSHOT`,
+      configured: true,
+    } satisfies ProviderStatus;
+  });
+  const access = registry?.access;
+
   return (
     <div className="spx-source-contract">
       <div className="panel-head">
-        <div><span>DATA SOURCE CONTRACT</span><h3>准确度优先级与授权边界</h3></div>
-        <small>密钥只在服务端</small>
+        <div><span>LICENSED DATA SOURCE REGISTRY</span><h3>数据源能力、时效与授权边界</h3></div>
+        <small>{registry ? `REGISTRY ${registry.schemaVersion}` : "正在核对运行状态"}</small>
+      </div>
+      <div className="spx-provider-policy">
+        <div>
+          <b>不抓网页 · 不平均门户价格</b>
+          <p>一张主快照只使用一个主报价源；辅助源只有在观测时间可比时用于交叉验证。主源失败时整张快照切换，不按字段拼接。</p>
+        </div>
+        <span className={access?.feedMode && access.feedMode !== "disabled" ? "ready" : "blocked"}>
+          {access?.feedMode && access.feedMode !== "disabled"
+            ? `${access.feedMode.toUpperCase()} · RIGHTS CHECKED`
+            : "PUBLIC FEED DISABLED"}
+        </span>
       </div>
       <div className="spx-source-grid">
-        <article>
-          <span>CURRENT ADAPTER</span>
-          <strong>{ready ? `${ready.source.provider} · ${ready.feedClass}` : "Massive / OPRA-ready"}</strong>
-          <p>期权 NBBO、IV、Greeks 与上一交易日 OI。是否实时由商业套餐和展示授权决定。</p>
-          <a href="https://massive.com/docs/rest/options/snapshots/option-chain-snapshot" target="_blank" rel="noreferrer">官方字段文档 ↗</a>
-        </article>
-        <article>
-          <span>GOLD STANDARD PATH</span>
-          <strong>Cboe CGIF + OPRA + Hanweck</strong>
-          <p>机构级 SPX 指数、全市场期权行情及统一 Greeks；部署前需签署相应展示或再分发许可。</p>
-          <a href="https://www.cboe.com/us/indices/accessing-index-data/" target="_blank" rel="noreferrer">Cboe 指数数据 ↗</a>
-        </article>
-        <article>
-          <span>OPEN INTEREST</span>
-          <strong>Previous trading day</strong>
-          <p>当前适配器标记为上一交易日收盘库存；精确批次日期未知时不会伪造日期，后续可用 OCC 日批次校验。</p>
-          <a href="https://www.theocc.com/market-data/market-data-reports/other-market-data-info/batch-processing/daily-open-interest" target="_blank" rel="noreferrer">OCC Daily OI ↗</a>
-        </article>
-        <article>
-          <span>EFFECTIVE GAMMA</span>
-          <strong>POSITION_ATTRIBUTION_NOT_OBSERVED</strong>
-          <p>标准 OPRA 快照没有客户/做市商买卖和开平仓归因，因此本模块不会把 OI GEX 冒充有效 Gamma。</p>
-          <a href="https://www.cboe.com/insights/posts/volatility-insights-evaluating-the-market-impact-of-spx-0-dte-options/" target="_blank" rel="noreferrer">Cboe 方法边界 ↗</a>
-        </article>
+        {providers.map((provider) => (
+          <article key={provider.id}>
+            <div className="spx-provider-card-head">
+              <span>{provider.role}</span>
+              <b className={provider.runtimeState}>{provider.statusLabel}</b>
+            </div>
+            <strong>{provider.name}</strong>
+            <p>{provider.note}</p>
+            <dl>
+              <div><dt>官方入口</dt><dd>{provider.officialAccess}</dd></div>
+              <div><dt>时效</dt><dd>{provider.freshness}</dd></div>
+              <div><dt>本站用途</dt><dd>{provider.allowedUse}</dd></div>
+            </dl>
+            <a href={provider.docsUrl} target="_blank" rel="noreferrer">官方说明 ↗</a>
+          </article>
+        ))}
       </div>
+      <p className="spx-source-footnote">
+        无外部展示权、衍生计算权或原始链再分发权时，市场 API 默认返回 DATA BLOCKED；服务器凭据不会进入浏览器响应。
+      </p>
     </div>
   );
 }
@@ -353,10 +388,8 @@ export function SpxStructureTerminal({ data }: { data: MarketApiResponse | null 
         <ExposurePanel ready={data} snapshot={snapshot} mode="dex" />
       </div>
       <ExpiryMatrix ready={data} selected={effectiveExpiration} onSelect={setSelectedExpiration} />
-      <div className="spx-two-column lineage">
-        <LineagePanel ready={data} snapshot={snapshot} />
-        <DataSourceContract ready={data} />
-      </div>
+      <LineagePanel ready={data} snapshot={snapshot} />
+      <DataSourceContract ready={data} />
       {effectiveExpiration && <RawSpxChain ready={data} expiration={effectiveExpiration} />}
     </div>
   );

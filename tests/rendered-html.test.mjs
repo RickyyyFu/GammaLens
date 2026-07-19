@@ -58,8 +58,43 @@ test("SPX ticker route renders the dedicated audited structure terminal", async 
   assert.match(html, /SPX 结构终端/);
   assert.match(html, /模块已就绪，数据不合格时不出数字/);
   assert.match(html, /Delta 缺失绝不按 0 处理/);
-  assert.match(html, /Cboe CGIF \+ OPRA \+ Hanweck/);
+  assert.match(html, /Nasdaq Smart Options/);
+  assert.match(html, /Cboe CGIF/);
+  assert.match(html, /Bloomberg B-PIPE \/ SAPI/);
+  assert.match(html, /Yahoo Finance/);
+  assert.match(html, /OptionCharts/);
+  assert.match(html, /TradingView/);
+  assert.match(html, /不抓网页 · 不平均门户价格/);
   assert.doesNotMatch(html, /登录|sign in|log in/i);
+});
+
+test("provider registry reports capabilities without exposing credentials", async () => {
+  const worker = await loadWorker();
+  const providerEnv = {
+    ...env,
+    MASSIVE_API_KEY: "massive-secret",
+    NASDAQ_DATALINK_BASE_URL: "https://licensed.example.test",
+    NASDAQ_DATALINK_CLIENT_ID: "nasdaq-client",
+    NASDAQ_DATALINK_CLIENT_SECRET: "nasdaq-secret",
+    PUBLIC_FEED_MODE: "realtime",
+    PUBLIC_DISPLAY_AUTHORIZED: "true",
+    DERIVED_ANALYTICS_AUTHORIZED: "true",
+    RAW_REDISTRIBUTION_AUTHORIZED: "true",
+  };
+  const response = await worker.fetch(
+    new Request("http://localhost/api/providers"),
+    providerEnv,
+    ctx,
+  );
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  assert.doesNotMatch(text, /massive-secret|nasdaq-secret|nasdaq-client/);
+  const payload = JSON.parse(text);
+  assert.equal(payload.policy.htmlScraping, false);
+  assert.equal(payload.policy.portalAveraging, false);
+  assert.equal(payload.providers.find((item) => item.id === "massive").runtimeState, "ready");
+  assert.equal(payload.providers.find((item) => item.id === "nasdaq-smart-options").configured, true);
+  assert.equal(payload.providers.find((item) => item.id === "tradingview").runtimeState, "display-only");
 });
 
 test("market API refuses to fabricate data when the provider is unconfigured", async () => {
@@ -70,6 +105,22 @@ test("market API refuses to fabricate data when the provider is unconfigured", a
   const payload = await response.json();
   assert.equal(payload.status, "unconfigured");
   assert.equal(payload.error.code, "DATA_PROVIDER_NOT_CONFIGURED");
+  assert.equal("contracts" in payload, false);
+  assert.equal("spot" in payload, false);
+});
+
+test("market API fails closed when a key exists but public data rights are not confirmed", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/market?symbol=SPX&profile=spx-front-structure"),
+    { ...env, MASSIVE_API_KEY: "server-only-key-without-rights" },
+    ctx,
+  );
+  assert.equal(response.status, 503);
+  const text = await response.text();
+  assert.doesNotMatch(text, /server-only-key-without-rights/);
+  const payload = JSON.parse(text);
+  assert.equal(payload.status, "unconfigured");
   assert.equal("contracts" in payload, false);
   assert.equal("spot" in payload, false);
 });
@@ -128,7 +179,14 @@ test("SPX profile uses the independent index snapshot and a bounded complete sco
     const worker = await loadWorker();
     const response = await worker.fetch(
       new Request("http://localhost/api/market?symbol=SPX&profile=spx-front-structure"),
-      { ...env, MASSIVE_API_KEY: "server-only-test-key" },
+      {
+        ...env,
+        MASSIVE_API_KEY: "server-only-test-key",
+        PUBLIC_FEED_MODE: "realtime",
+        PUBLIC_DISPLAY_AUTHORIZED: "true",
+        DERIVED_ANALYTICS_AUTHORIZED: "true",
+        RAW_REDISTRIBUTION_AUTHORIZED: "true",
+      },
       ctx,
     );
     assert.equal(response.status, 200);

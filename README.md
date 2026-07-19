@@ -10,6 +10,8 @@ GammaLens 是一个开放访问、可审计的美股期权结构研究终端。�
 
 - 默认不生成任何合成价格、合成 OI、合成 Greeks 或伪实时戳。
 - 未配置数据源时，`/api/market` 返回 `503 DATA_PROVIDER_NOT_CONFIGURED`，界面显示“不可计算”。
+- 不抓 Nasdaq、Yahoo、OptionCharts、Bloomberg 或 TradingView 网页，也不把几个门户的异步价格平均成“共识价”。
+- `/api/providers` 只公开适配能力、配置状态与授权门控，不返回密钥或网关地址。
 - `observedAt`、`fetchedAt`、报价时间和 OI 批次分开保存；未知时间保持 `null`。
 - 链被截断或存在阻断级质量问题时，全局 Gamma 指标停止计算。
 - SPX GEX 与 DEX 分别门控：任何正 OI 合约缺少对应 Greek 或可靠乘数时，该到期日 headline 直接停算；缺失 Delta 绝不按 0 处理。
@@ -39,13 +41,17 @@ cp .dev.vars.example .dev.vars
 pnpm dev
 ```
 
-如需真实期权快照，在 `.dev.vars` 中填写服务端密钥：
+如需真实期权快照，在 `.dev.vars` 中填写服务端密钥，并且只在合同明确覆盖相关用途后启用三项独立权利门控：
 
 ```text
 MASSIVE_API_KEY=your_key_here
+PUBLIC_FEED_MODE=realtime
+PUBLIC_DISPLAY_AUTHORIZED=true
+DERIVED_ANALYTICS_AUTHORIZED=true
+RAW_REDISTRIBUTION_AUTHORIZED=true
 ```
 
-密钥只供服务端 Worker 使用，不会发送到浏览器。
+缺少任一门控时 `/api/market` 都会 fail closed。密钥只供服务端 Worker 使用，不会发送到浏览器。
 
 ```bash
 pnpm test
@@ -56,13 +62,25 @@ pnpm run lint
 
 当前可执行适配器使用 Massive：SPX 现货来自独立 `I:SPX` index snapshot，期权链来自 OPRA snapshot，OI 是上一交易日结束时库存。数据是否实时取决于订阅套餐。
 
+命名门户的接入规则：
+
+| 来源 | 程序化接入方式 | GammaLens 用途 |
+|---|---|---|
+| Nasdaq | 正式签约的 Nasdaq Data Link / Smart Options | 计划中的 OPRA 期权源；字段与时效以 entitlement 为准 |
+| Yahoo Finance | 没有适合本站的受支持公开行情 API | 仅人工参考，不抓取、不再分发 |
+| OptionCharts | 官方 FAQ 明确没有 API | 仅人工参考或用户手动 CSV，不进入后台计算 |
+| Bloomberg | B-PIPE、Server API 或 Data License 企业合同 | 计划中的机构网关或同时间点交叉验证源 |
+| TradingView | Widget / Advanced Charts；图表库要求开发者自带 datafeed | 只作独立图表界面，不读取展示行情做 GEX |
+
+SPX 的目标组合是：Cboe CGIF 提供指数 Spot，授权 OPRA/Nasdaq Smart Options 提供期权报价，OCC Daily OI 校验持仓批次，Hanweck 或披露完整模型版本的计算源提供 Greeks。辅助来源只能在观测时间可比时做偏差检查，不参与平均。
+
 推荐的数据质量路径：
 
 1. 机构级：Cboe CGIF（SPX）+ OPRA / Cboe Options（NBBO/成交）+ Cboe Hanweck（Greeks）+ OCC Daily OI 校验。
 2. 实用级：Massive Business Indices + Business Options / 实时 OPRA 权限，服务端保存 request ID 和逐字段时间戳。
 3. 有效 Gamma：另需 Cboe Open-Close 或等价的买卖、开平与参与者归因；标准 OPRA 快照不能计算。
 
-公开网站展示实时 SPX/OPRA 数据以及对外提供衍生分析，必须取得与用途相符的商业、展示和再分发授权。不要把个人套餐密钥部署到公开服务，也不要提交到 GitHub。未获得授权时，保持服务器密钥为空，网站会诚实显示 `DATA_PROVIDER_NOT_CONFIGURED`。
+公开网站展示实时或延迟 SPX/OPRA 数据以及对外提供衍生分析，必须取得与用途相符的商业、外部展示、非展示计算和原始数据再分发授权。不要把个人套餐密钥部署到公开服务，也不要提交到 GitHub。未获得授权时保持 `PUBLIC_FEED_MODE=disabled`，网站会诚实显示 `DATA_PROVIDER_NOT_CONFIGURED`。
 
 ## 风险说明
 
