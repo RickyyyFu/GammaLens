@@ -1,0 +1,19 @@
+{
+  "version": "2.1.0",
+  "skill_name": "us-equity-screening",
+  "task": {
+    "market_scanning": true,
+    "stock_ranking": "research_priority_only_with_comparable_inputs"
+  },
+  "positioning": {
+    "enabled": true,
+    "short_interest_vs_short_volume_strict": true,
+    "require_settlement_date": true,
+    "require_dtc_volume_window": true,
+    "allow_unknown": true,
+    "high_si_is_fuel_not_trigger": true,
+    "gex_requires_dealer_assumption": true,
+    "thirteen_f_is_delayed_proxy": true,
+    "crowding_can_rank_alone": false
+  }
+}

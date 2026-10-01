@@ -1,0 +1,21 @@
+test_13f_delay (test_contracts.Contracts.test_13f_delay) ... ok
+test_call_oi_not_proof (test_contracts.Contracts.test_call_oi_not_proof) ... ok
+test_crowding_not_intrinsic (test_contracts.Contracts.test_crowding_not_intrinsic) ... ok
+test_fuel_trigger (test_contracts.Contracts.test_fuel_trigger) ... ok
+test_gex_assumption (test_contracts.Contracts.test_gex_assumption) ... ok
+test_long_unwind (test_contracts.Contracts.test_long_unwind) ... ok
+test_missing_unknown (test_contracts.Contracts.test_missing_unknown) ... ok
+test_short_volume_not_float (test_contracts.Contracts.test_short_volume_not_float) ... ok
+test_si_short_volume_distinct (test_contracts.Contracts.test_si_short_volume_distinct) ... ok
+test_two_sided (test_contracts.Contracts.test_two_sided) ... ok
+test_capex_split (test_transition.Transition.test_capex_split) ... ok
+test_model_conflict (test_transition.Transition.test_model_conflict) ... ok
+test_real_option (test_transition.Transition.test_real_option) ... ok
+test_sotp (test_transition.Transition.test_sotp) ... ok
+test_state_tree (test_transition.Transition.test_state_tree) ... ok
+test_transaction_anchor (test_transition.Transition.test_transaction_anchor) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.001s
+
+OK

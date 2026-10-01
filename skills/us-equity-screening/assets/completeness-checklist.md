@@ -1,0 +1,12 @@
+# 完整性检查
+- [ ] universe/coverage来源与缺口
+- [ ] 经营/估值/催化证据
+- [ ] Short Interest与Short Volume未混用
+- [ ] SI结算日/DTC窗口/借券时点（若有）
+- [ ] 13F滞后限制
+- [ ] GEX/dealer假设限制
+- [ ] squeeze为Fuel/Trigger/Feedback之一或数据不足
+- [ ] long crowding / unwind状态
+- [ ] two-sided crowding允许存在
+- [ ] crowding未成为独立买入排名
+- [ ] 数据缺失写UNKNOWN/LIMITED
