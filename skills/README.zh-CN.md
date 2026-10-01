@@ -2,100 +2,88 @@
 
 [English](./README.md) | 简体中文
 
-这里维护两套可独立安装、可持续版本化的 Agent Skill：
+这里正式维护两套版本化 Skill：
 
-- **us-equity-research**：美股选股与投资研究
-- **cn-a-share-equity-research**：A股选股与投资研究
+- **us-equity-screening v2.1.0**：美股选股与机会筛选。
+- **single-stock-deep-research v3.3.0**：单标的完整深度研究。
 
-两套 Skill 共用同一研究核心，但针对不同市场制度做适配。目标不是维护一张永久“推荐名单”，而是把不断变化的证据串成稳定流程：
+两套 Skill 共用数据核验、估值、风险与复盘纪律，但职责明确分开：**选股 Skill 负责找候选与研究优先级；深研 Skill 不扫描市场、不做买入排名，而是把给定公司研究到底。**
 
-**数据核验 → 主要矛盾 → 行业利润池 → 公司商业模式 → 盈利路径 → 估值 → 催化剂 → 技术/执行状态 → 组合风险 → 反证与复盘**
+## 当前版本
+
+| Skill | 版本 | 核心职责 |
+|---|---:|---|
+| us-equity-screening | 2.1.0 | 覆盖审计、候选发现、估值/催化筛选、Positioning/Crowding覆盖层 |
+| single-stock-deep-research | 3.3.0 | 完整公司研究、估值、状态跃迁/战略资产、拥挤度、技术与条件式操作 |
+
+## 最新升级
+
+两个 Skill 都加入了 **Positioning / Crowding / Squeeze**：
+
+- Short Interest 与 daily short-sale volume 严格分开。
+- 高SI只是 **Fuel**，不是“正在轧空”的证据。
+- Short squeeze 使用 **Fuel → Trigger → Feedback**。
+- 同时检查 Long crowding、Long unwind / 多杀多、Two-sided crowding。
+- 13F只作为滞后代理，不能当实时净仓位。
+- GEX是模型，不是dealer真实账本。
+- 缺borrow/SI/OI数据时必须标 UNKNOWN/LIMITED，不能编数字。
+
+深研 v3.3.0 还包含状态跃迁/战略资产分支：SOTP、Growth/Maintenance CapEx、利用率、Normalized Earnings、State Tree、Real Option、Transaction Anchors、Model Conflict Review 与 Milestone Tracker。
 
 ## 目录
 
-- skills/us-equity-research/SKILL.md：美股版
-- skills/cn-a-share-equity-research/SKILL.md：A股版
-- skills/CHANGELOG.md：版本记录
-
-两个 Skill 都尽量保持自包含，复制单个目录即可维护和安装，不依赖另一个 Skill 的文件。
-
-## 两个市场共用的核心
-
-两套 Skill 都强制执行这些规则：
-
-1. 已披露事实、管理层指引、一致预期、模型假设、推断、未知必须分开。
-2. 找出未来6–24个月最影响每股价值的1–3个变量，而不是堆指标。
-3. 区分好行业、好公司、好价格、好时机。
-4. Forward PE、PEG、现金流估值、反向估值必须使用正确的年度和口径。
-5. 周期股先正常化盈利，不把峰值利润永久化。
-6. 研究候选、可建仓候选、核心持仓是三个不同状态。
-7. 基本面估值、技术执行、组合仓位和期权风险分别处理。
-8. 每次结论都留下反证和失效条件，方便以后真正复盘。
-
-## 市场适配
-
-### 美股版
-
-额外处理：
-
-- SEC / 公司IR来源优先级
-- GAAP与Non-GAAP对账
-- 财年与自然年EPS
-- 回购授权与实际回购
-- 13F / Form 4及披露延迟
-- 期权、GEX、盘前盘后执行边界
-
-### A股版
-
-额外处理：
-
-- 归母净利润与扣非归母净利润
-- 业绩预告、业绩快报、正式财报
-- Forward EPS的一致预期覆盖质量
-- 解禁、减持、股权质押、定增、可转债、再融资
-- T+1、涨跌停、停牌、ST/风险警示以及无法按理论止损价成交
-- 换手率、自由流通盘、股东结构、股数变化
-- 银行/保险/券商/央国企适用的PB–ROE等估值方法
-- 政策 → 订单 → 收入 → 利润，而不是“政策支持=股票必涨”
+```text
+skills/
+  us-equity-screening/
+    SKILL.md
+    README.md
+    README.en.md
+    references/
+    assets/
+    scripts/
+    tests/
+  single-stock-deep-research/
+    SKILL.md
+    README.md
+    README.en.md
+    references/
+    assets/
+    scripts/
+    tests/
+  CHANGELOG.md
+  README.md
+  README.zh-CN.md
+```
 
 ## 安装
 
-Codex类本地Skills目录示例：
+必须复制**整个 Skill 目录**，不要只复制 SKILL.md。
 
-~~~text
-~/.agents/skills/us-equity-research/SKILL.md
-~/.agents/skills/cn-a-share-equity-research/SKILL.md
-~~~
+例如：
 
-Claude Code常见目录示例：
+```text
+~/.agents/skills/us-equity-screening/
+~/.agents/skills/single-stock-deep-research/
+```
 
-~~~text
-~/.claude/skills/us-equity-research/SKILL.md
-~/.claude/skills/cn-a-share-equity-research/SKILL.md
-~~~
+或部分宿主使用：
 
-不同宿主的路径和调用方式会更新，实际使用时以当前官方文档为准。
+```text
+~/.claude/skills/us-equity-screening/
+~/.claude/skills/single-stock-deep-research/
+```
 
-## 推荐提示词
-
-美股全市场筛选：
-
-> 使用 us-equity-research，全行业筛选当前值得进一步研究的美股。统一数据截止时间，区分研究候选和可建仓候选，并写出每个结论的反证。
-
-A股筛选：
-
-> 使用 cn-a-share-equity-research 筛选A股。必须检查扣非利润、业绩预告/快报、一致预期覆盖、解禁减持、换手/自由流通结构、估值以及政策到利润的传导。
+宿主路径和调用方式可能更新，以当前宿主文档为准。
 
 ## GitHub维护规则
 
-- 每个Skill使用语义化版本号。
-- 方法行为改变必须升版本，并写入CHANGELOG。
-- 尽量一个PR只修改一个方法问题。
-- 修改共用方法后，要明确检查两个市场版本是否都要同步。
-- 不能看完结果后偷偷改阈值，再宣称原规则有效。
-- 复盘时保留失败预测，不能只保存成功案例。
-- 发布新版本前重新检查：来源链接、示例、会计口径、市场制度和交易规则假设。
+- 使用语义化版本号。
+- 方法行为改变必须升版本并写CHANGELOG。
+- 共用规则变化时同时复核两个Skill。
+- 不允许看完结果后偷偷改阈值再宣称规则有效。
+- 复盘必须保留失败预测，不能只保留成功案例。
+- 测试通过只证明文件/方法契约满足，不证明策略有超额收益。
 
 ## 边界
 
-这两套Skill是研究方法，不是券商连接、自动交易系统或收益保证。它们不会自动获得实时行情、账户权限、个性化风险额度，也不提供税务或法律结论。计算公式正确不代表输入假设正确，两者必须分别核验。
+这两套 Skill 是研究方法，不是券商连接、自动交易系统或收益保证。真实行情、财报、Short Interest、借券、期权和账户状态依赖宿主已有授权数据源。

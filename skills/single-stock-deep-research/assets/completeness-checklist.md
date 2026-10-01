@@ -1,0 +1,16 @@
+# 完整性检查 · v3.3
+- [ ] FACT/GUIDANCE/CONSENSUS/MODEL/INFERENCE/UNKNOWN分开
+- [ ] 1—3项主要矛盾及转变条件
+- [ ] 五年财务、最新季度/TTM与资本质量
+- [ ] 护城河证据和反证
+- [ ] Forward PE/PEG适用性、内在模型、反向估值、三情景、敏感性
+- [ ] 企业类型路由；Transition触发时完成SOTP/CapEx拆分/状态树/交易锚/冲突复核
+- [ ] 催化阶段没有越级
+- [ ] Positioning Risk Card
+- [ ] Short Interest≠Short Volume；SI日期、DTC窗口（若有）
+- [ ] 13F滞后，GEX非dealer账本
+- [ ] Squeeze Fuel≠Trigger；Long unwind/two-sided允许
+- [ ] 拥挤度没有无依据改DCF
+- [ ] 技术状态/关键位与内在价值分开
+- [ ] 期权如请求：价格×时间×IV，1−Delta禁用
+- [ ] 最终预测日期/三情景与反证

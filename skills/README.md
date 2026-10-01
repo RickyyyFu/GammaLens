@@ -2,100 +2,87 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-This directory contains two self-contained Agent Skills for repeatable equity research and stock screening:
+This directory maintains two versioned research skills:
 
-- **us-equity-research** — U.S. equities
-- **cn-a-share-equity-research** — China A-shares
+- **us-equity-screening v2.1.0** — market / sector / theme / explicit-universe opportunity screening.
+- **single-stock-deep-research v3.3.0** — full single-name research for a company, ticker, or a small explicit list.
 
-They share the same research core but use different market adapters. The goal is not to output a permanent stock list. The goal is to turn changing evidence into a disciplined workflow:
+They share the same evidence discipline but have different responsibilities. The screening skill finds and prioritizes research candidates; the deep-research skill does not scan the market or rank stocks, and instead produces a complete company thesis.
 
-**data integrity → key contradiction → industry profit pool → company economics → earnings path → valuation → catalysts → technical/execution state → portfolio risk → falsification and review**
+## Current versions
 
-## Repository layout
+| Skill | Version | Primary job |
+|---|---:|---|
+| us-equity-screening | 2.1.0 | Candidate discovery, coverage audit, valuation/catalyst screen, positioning & crowding overlay |
+| single-stock-deep-research | 3.3.0 | Full company research, valuation, transition/strategic-asset branch, positioning/crowding, technical & conditional execution |
 
-- skills/us-equity-research/SKILL.md — U.S. market skill
-- skills/cn-a-share-equity-research/SKILL.md — China A-share skill
-- skills/CHANGELOG.md — version history
+## What changed in the latest release
 
-Each skill is intentionally self-contained so it can be copied into a local skills directory without depending on sibling files.
+Both skills now include a **Positioning / Crowding / Squeeze** layer:
+- Short Interest is strictly separated from daily short-sale volume.
+- High short interest is treated as **Fuel**, not proof that a squeeze is active.
+- Squeeze analysis uses **Fuel → Trigger → Feedback**.
+- Long crowding, long-unwind (“多杀多”), and two-sided crowding are explicitly evaluated.
+- 13F is treated as a delayed proxy, not a real-time net-position ledger.
+- GEX is a model, not an observed dealer book.
+- Missing borrow/SI/OI inputs must remain UNKNOWN/LIMITED.
 
-## What the two skills share
+The deep-research skill also includes the transition/strategic-asset branch for companies such as large-capex restructurings and state-transition stories: SOTP, Growth vs Maintenance CapEx, utilization, normalized earnings, state tree, real options, transaction anchors, model-conflict review, and milestone tracking.
 
-Both skills enforce the same core principles:
+## Layout
 
-1. Separate disclosed facts, management guidance, consensus estimates, model assumptions, inference, and unknowns.
-2. Identify the 1–3 variables that matter most to per-share value over the next 6–24 months.
-3. Distinguish a good industry, a good company, a good price, and a good entry point.
-4. Use Forward P/E, PEG, cash-flow valuation, and reverse valuation with the correct denominator and period.
-5. Normalize cyclicals instead of treating peak earnings as permanent.
-6. Treat research candidates, buyable candidates, and core holdings as different states.
-7. Keep technical execution, portfolio sizing, and options risk separate from fundamental valuation.
-8. Record invalidation conditions so the thesis can be tested instead of defended indefinitely.
-
-## Market-specific adapters
-
-### U.S. equities
-
-The U.S. skill adds rules for:
-
-- SEC/IR source hierarchy
-- GAAP vs non-GAAP reconciliation
-- fiscal-year vs calendar-year EPS
-- buyback authorization vs executed repurchases
-- 13F/Form 4 and disclosure-lag interpretation
-- options, GEX, and pre-market/after-hours execution boundaries
-
-### China A-shares
-
-The A-share skill adds rules for:
-
-- attributable net profit vs recurring attributable net profit
-- earnings previews, earnings express reports, and formal reports
-- analyst coverage quality for forward earnings estimates
-- lock-up expirations, insider/major-shareholder selling, pledges, placements, convertibles, and refinancing
-- T+1, price limits, suspensions, ST/risk-warning securities, and execution failure
-- turnover rate, free float, shareholder structure, and share-count changes
-- PB–ROE and sector-specific valuation for banks, insurers, brokers, and SOEs
-- policy → orders → revenue → profit transmission rather than policy-label investing
+```text
+skills/
+  us-equity-screening/
+    SKILL.md
+    README.md
+    README.en.md
+    references/
+    assets/
+    scripts/
+    tests/
+  single-stock-deep-research/
+    SKILL.md
+    README.md
+    README.en.md
+    references/
+    assets/
+    scripts/
+    tests/
+  CHANGELOG.md
+  README.md
+  README.zh-CN.md
+```
 
 ## Installation
 
-For Codex-style local skills, copy one directory into a supported skills folder, for example:
+Copy the **whole skill directory**, not only SKILL.md.
 
-~~~text
-~/.agents/skills/us-equity-research/SKILL.md
-~/.agents/skills/cn-a-share-equity-research/SKILL.md
-~~~
+Example:
 
-For Claude Code, a common layout is:
+```text
+~/.agents/skills/us-equity-screening/
+~/.agents/skills/single-stock-deep-research/
+```
 
-~~~text
-~/.claude/skills/us-equity-research/SKILL.md
-~/.claude/skills/cn-a-share-equity-research/SKILL.md
-~~~
+or for hosts that use a Claude-style folder:
 
-Host paths and invocation syntax can change. Verify against the current host documentation.
+```text
+~/.claude/skills/us-equity-screening/
+~/.claude/skills/single-stock-deep-research/
+```
 
-## Suggested prompts
+Host paths and invocation behavior can change; verify against the current host documentation.
 
-U.S. screen:
+## Maintenance rules
 
-> Use us-equity-research to screen the current U.S. market across sectors. Use one data cutoff, separate research candidates from buyable candidates, and explain what would invalidate each thesis.
-
-A-share screen:
-
-> Use cn-a-share-equity-research to screen A-shares. Check recurring profit, earnings previews, analyst estimate coverage, unlock/sell-down risk, turnover/free-float structure, valuation, and policy-to-profit transmission.
-
-## Versioning and maintenance
-
-- Use semantic versioning for each skill.
-- Behavior changes require a version bump and CHANGELOG entry.
-- Prefer one methodology change per pull request.
-- When a shared research rule changes, explicitly review whether both market skills should change.
-- Do not silently change screening thresholds after seeing outcomes.
-- Do not delete failed historical predictions when evaluating the method.
-- Before a release, re-check links, examples, accounting definitions, and market-rule assumptions.
+- Use semantic versioning.
+- Any behavior-changing methodology update requires a version bump and CHANGELOG entry.
+- Shared-rule changes should be reviewed in both skills.
+- Do not silently optimize thresholds after seeing outcomes.
+- Preserve failed historical forecasts when reviewing the method.
+- Tests validate file/method contracts; they do **not** prove market alpha or future returns.
 
 ## Boundaries
 
-These skills are research workflows, not brokerage integrations, automated trading systems, or return guarantees. They do not create real-time data access, broker permissions, personal suitability, or tax/legal advice. A calculation can be correct while the input assumptions are wrong; both must be audited separately.
+These are research workflows, not brokerage connectors, automatic trading systems, or return guarantees. Real prices, filings, Short Interest, borrow data, options data and account state depend on the host’s authorized data sources.

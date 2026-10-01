@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.1.0",
+  "research_id": null,
+  "symbol": null,
+  "data_cutoff": null,
+  "records": [
+    {
+      "metric": null,
+      "value": null,
+      "claim_type": null,
+      "verification_status": null,
+      "freshness_status": null,
+      "source": null,
+      "published_at": null,
+      "data_as_of": null,
+      "limitation": null
+    }
+  ]
+}

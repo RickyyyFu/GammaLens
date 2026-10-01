@@ -1,0 +1,29 @@
+{
+  "version": "3.3.0",
+  "skill_name": "single-stock-deep-research",
+  "enterprise_type": null,
+  "transition": {
+    "auto_evaluate": true,
+    "single_path_dcf_not_central_when_triggered": true,
+    "sotp_required": true,
+    "split_growth_maintenance_capex": true,
+    "state_tree_required": true,
+    "transaction_anchors_required": true,
+    "model_conflict_review": true
+  },
+  "positioning": {
+    "enabled_in_full_report": true,
+    "short_interest_vs_short_volume_strict": true,
+    "high_si_is_fuel_not_trigger": true,
+    "long_unwind_enabled": true,
+    "two_sided_crowding_enabled": true,
+    "thirteen_f_is_delayed_proxy": true,
+    "gex_requires_dealer_assumption": true,
+    "missing_data": "UNKNOWN"
+  },
+  "risk": {
+    "approved_by_user": false,
+    "account_nav": null,
+    "risk_fraction": null
+  }
+}
